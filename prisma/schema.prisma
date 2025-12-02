@@ -1,0 +1,88 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MAHASISWA
+}
+
+model User {
+  id        Int        @id @default(autoincrement())
+  name      String
+  email     String     @unique
+  password  String
+  role      Role       @default(MAHASISWA)
+  mahasiswa Mahasiswa?
+  createdAt DateTime   @default(now())
+}
+
+model Mahasiswa {
+  id          Int          @id @default(autoincrement())
+  nim         String       @unique
+  nama        String
+  userId      Int          @unique
+  user        User         @relation(fields: [userId], references: [id])
+  enrollments Enrollment[]
+  createdAt   DateTime     @default(now())
+}
+
+model Dosen {
+  id        Int      @id @default(autoincrement())
+  nama      String
+  nip       String?  @unique
+  alamat      String?
+  jenisKelamin String?   // contoh: "Laki-laki" / "Perempuan"
+  createdAt DateTime @default(now())
+  Matkul    MataKuliah []
+  jadwals   Jadwal[]
+}
+
+model MataKuliah {
+  id        Int      @id @default(autoincrement())
+  kode      String   @unique
+  nama      String
+  dosenId   Int
+  sks       Int
+  createdAt DateTime @default(now())
+  dosen     Dosen @relation(fields: [dosenId], references: [id])
+  jadwals   Jadwal[]
+}
+
+model Jadwal {
+  id           Int        @id @default(autoincrement())
+  mataKuliahId Int
+  dosenId      Int
+  hari         String
+  jamMulai     String
+  jamSelesai   String
+  kapasitas    Int        @default(999)
+  createdAt    DateTime   @default(now())
+
+  mataKuliah   MataKuliah @relation(fields: [mataKuliahId], references: [id])
+  dosen        Dosen      @relation(fields: [dosenId], references: [id])
+  enrollments  Enrollment[]
+}
+
+model Enrollment {
+  id          Int        @id @default(autoincrement())
+  mahasiswaId Int
+  jadwalId    Int
+  createdAt   DateTime   @default(now())
+
+  mahasiswa   Mahasiswa  @relation(fields: [mahasiswaId], references: [id])
+  jadwal      Jadwal     @relation(fields: [jadwalId], references: [id])
+
+  @@unique([mahasiswaId, jadwalId])
+}
