@@ -10,36 +10,59 @@ export const register = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
 
-    // cek email sudah digunakan
-    const isExist = await prisma.user.findUnique({
-      where: { email },
-    });
-
+    const isExist = await prisma.user.findUnique({ where: { email } });
     if (isExist)
       return res.status(400).json({ message: "Email sudah digunakan" });
 
-    // hash password
     const hashed = await bcrypt.hash(password, 10);
 
-    // simpan user
+    // 1️⃣ Buat user dulu
     const user = await prisma.user.create({
       data: {
         name,
         email,
         password: hashed,
-        role: role || "mahasiswa",
+        role: role?.toUpperCase() || "MAHASISWA",
       },
     });
 
+    let profile = null;
+
+    // 2️⃣ Jika role mahasiswa → buat profil Mahasiswa
+    if (user.role === "MAHASISWA") {
+      profile = await prisma.mahasiswa.create({
+        data: {
+          nim: "NIM" + user.id, // boleh diganti sesuai kebutuhan
+          nama: user.name,
+          userId: user.id,
+        },
+      });
+    }
+
+    // 3️⃣ Jika role dosen → buat profil admin (opsional)
+    else if (user.role === "ADMIN") {
+      profile = await prisma.dosen.create({
+        data: {
+          nama: user.name,
+          userId: user.id,
+        },
+      });
+    }
+
+    // Admin tidak perlu punya profil tambahan
+
     res.status(201).json({
       message: "Registrasi berhasil",
-      data: { id: user.id, name: user.name, email: user.email, role: user.role },
+      user: user,
+      profile: profile,
     });
+
   } catch (error) {
     console.log(error);
-    res.status(500).json({ message: "Gagal registrasi" });
+    res.status(500).json({ message: "Gagal registrasi", error: error.message });
   }
 };
+
 
 export const login = async (req, res) => {
   try {

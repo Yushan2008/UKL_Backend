@@ -16,6 +16,7 @@ datasource db {
 enum Role {
   ADMIN
   MAHASISWA
+  DOSEN
 }
 
 model User {
@@ -25,6 +26,7 @@ model User {
   password  String
   role      Role       @default(MAHASISWA)
   mahasiswa Mahasiswa?
+  dosen     Dosen?
   createdAt DateTime   @default(now())
 }
 
@@ -45,6 +47,11 @@ model Dosen {
   alamat      String?
   jenisKelamin String?   // contoh: "Laki-laki" / "Perempuan"
   createdAt DateTime @default(now())
+
+  userId    Int       @unique
+  user      User      @relation(fields: [userId], references: [id])
+
+
   Matkul    MataKuliah []
   jadwals   Jadwal[]
 }

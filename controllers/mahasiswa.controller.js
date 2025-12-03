@@ -14,14 +14,44 @@ function ensureMahasiswaRole(req, res) {
 
 export const listAvailableMata = async (req, res) => {
   if (!ensureMahasiswaRole(req, res)) return;
-  const list = await prisma.mataKuliah.findMany();
-  res.json(list);
+  const list = await prisma.mataKuliah.findMany({ include: { dosen: true } });
+
+  const mantap = list.map((Laso)=> {
+    const a = {
+      id: Laso.id,
+        namaMatkul: Laso.nama,
+        kode: Laso.kode,
+        Pengajar: Laso.dosen.nama,
+        sks: Laso.sks,
+    }
+    return a;
+  })
+  res.json({
+    message: "Daftar mata kuliah",
+    Data: mantap
+  });
 };
 
 export const listAvailableJadwal = async (req, res) => {
   if (!ensureMahasiswaRole(req, res)) return;
   const jadwals = await prisma.jadwal.findMany({ include: { mataKuliah: true, dosen: true, enrollments: true } });
-  res.json(jadwals);
+  const daftar = await prisma.jadwal.findMany({ where: { id: jadwals.id }, include: { mataKuliah: true, dosen: true}})
+
+  const respon = daftar.map((ka)=> {
+    const m = {
+      id: ka.id,
+        mataKuliahId: ka.mataKuliah.nama,
+        Pengajar: ka.dosen.nama,
+        hari: ka.hari,
+        jamMulai: ka.jamMulai,
+        jamSelesai: ka.jamSelesai
+    }
+    return m;
+  })
+  res.json({
+    message: "Daftar Jadwal",
+    Data: respon
+  });
 };
 
 export const enrollJadwal = async (req, res) => {
@@ -59,7 +89,9 @@ export const enrollJadwal = async (req, res) => {
     const enroll = await prisma.enrollment.create({ data: { mahasiswaId: mahasiswa.id, jadwalId: jadwal.id } });
 
     // after enroll, verify MIN SKS rule may be applied at semester end or enforced elsewhere. Here we just allow enroll; admin may check later.
-    return res.status(201).json({ message: "Berhasil mendaftar jadwal", enrollment: enroll, totalSKS: targetSKS });
+    const daftarJadwal = await prisma.enrollment.findMany({ where: { id: Number(jadwalId) }, include: { mataKuliah: true, enrollments: true, dosen: true } });
+     
+    return res.status(201).json({ message: "Berhasil mendaftar jadwal", enrollment: enroll, totalSKS: targetSKS, });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -77,7 +109,7 @@ export const mySchedule = async (req, res) => {
   const schedules = mahasiswa.enrollments.map(e => ({
     jadwalId: e.jadwal.id,
     mataKuliah: e.jadwal.mataKuliah,
-    dosen: e.jadwal.dosen,
+    Pengajar: e.jadwal.dosen,
     hari: e.jadwal.hari,
     jamMulai: e.jadwal.jamMulai,
     jamSelesai: e.jadwal.jamSelesai

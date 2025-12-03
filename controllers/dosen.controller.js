@@ -1,313 +1,141 @@
 import { PrismaClient } from "@prisma/client";
-import { createDeflate } from "zlib";
-import bcrypt from "bcrypt";
+
 const prisma = new PrismaClient();
 
-// --- Dosen CRUD ---
-export const createDosen = async (req, res) => {
-  try {
-    const { nama, nip, alamat, jenisKelamin } = req.body;
+export const createJadwalDosen = async (req, res) => {
+  const { mataKuliahId, hari, jamMulai, jamSelesai, kapasitas } = req.body;
+  console.log(req.body);
 
-    const dosen = await prisma.dosen.create({
-      data: {
-        nama,
-        nip,
-        alamat,
-        jenisKelamin,
-      },
+  try {
+    // Ambil profil dosen dari user login
+    const dosen = await prisma.dosen.findUnique({
+      where: { userId: req.user.id }
     });
 
-    res.status(201).json(dosen);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-export const listDosen = async (req, res) => {
-  const dosens = await prisma.dosen.findMany();
-  res.json(dosens);
-};
-
-export const updateDosen = async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    const { nama, nip, alamat, jenisKelamin } = req.body;
-    const updated = await prisma.dosen.update({ where: { id }, data: { nama, nip, alamat, jenisKelamin } });
-    res.json({
-      message: "Data berhasil update",
-      Data: updated
-    });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-};
-
-export const deleteDosen = async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    await prisma.dosen.delete({ where: { id } });
-    res.json({ 
-      message: "Dosen deleted",
-      status: "succes"
-     });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-};
-
-// --- MataKuliah CRUD ---
-export const createMata = async (req, res) => {
-  try {
-    const { kode, nama, dosenId, sks } = req.body;
-    const mata = await prisma.mataKuliah.create({ data: { kode, nama, dosenId, sks } });
-    const find = await prisma.mataKuliah.findMany({where: {id: mata.id}, include: { dosen: true }})
-
-    const result = find.map((Turuks)=> {
-      const i = {
-        id: Turuks.id,
-        namaMatkul: Turuks.nama,
-        kode: Turuks.kode,
-        Pengajar: Turuks.dosen.nama,
-        sks: Turuks.sks
-      }
-      return i;
-    })
-    res.status(201).json({
-      message: "Matkul berhasil ditambah",
-      Data: result
-    });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-};
-
-export const listMata = async (req, res) => {
-  const list = await prisma.mataKuliah.findMany({ include: { dosen: true } });
-
-  const mantap = list.map((Laso)=> {
-    const a = {
-      id: Laso.id,
-        namaMatkul: Laso.nama,
-        kode: Laso.kode,
-        Pengajar: Laso.dosen.nama,
-        sks: Laso.sks,
-        createdAt: Laso.createdAt
-    }
-    return a;
-  })
-  res.json({
-    message: "List mata kuliah",
-    Data: mantap
-  });
-};
-
-export const updateMata = async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    const { kode, nama, sks } = req.body;
-    const updated = await prisma.mataKuliah.update({ where: { id }, data: { kode, nama, sks } });
-    const perbarui = await prisma.mataKuliah.findMany({ where: { id: updated.id }, include: { dosen: true } })
-    
-    const result = perbarui.map((Patak)=> {
-      const s = {
-        id: Patak.id,
-        namaMatkul: Patak.nama,
-        kode: Patak.kode,
-        Pengajar: Patak.dosen.nama,
-        sks: Patak.sks,
-      }
-      return s;
-    })
-    res.json({
-      message: "Data berhasil update",
-      Data: result
-    });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-};
-
-export const deleteMata = async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    await prisma.mataKuliah.delete({ where: { id }});
-    const hapus = await prisma.mataKuliah.findMany({ where: { id: id.id }, include: { dosen: true } })
-
-    const respon = hapus.map((haha)=> {
-      const h = {
-        id: haha.id,
-        namaMatkul: haha.nama,
-        kode: haha.kode,
-        Pengajar: haha.dosen.nama,
-        sks: haha.sks,
-        createdAt: haha.createdAt
-      }
-      return h;
-    })
-    res.json({ message: "Mata kuliah deleted",
-      matkulLainnya: respon
-    });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-};
-
-// --- Mahasiswa management (admin) ---
-export const createMahasiswa = async (req, res) => {
-  try {
-    const { nama, nim, email, password } = req.body;
-
-    // Cek apakah email sudah dipakai
-    const emailExists = await prisma.user.findUnique({ where: { email } });
-    if (emailExists) {
-      return res.status(400).json({ message: "Email sudah digunakan" });
+    if (!dosen) {
+      return res.status(404).json({ message: "Profil dosen tidak ditemukan" });
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // 1. Buat user baru
-    const user = await prisma.user.create({
-      data: {
-        name: nama,
-        email,
-        password: hashedPassword,
-        role: "MAHASISWA",
-      },
-    });
-
-    // 2. Buat mahasiswa yang terhubung ke user
-    const mahasiswa = await prisma.mahasiswa.create({
-      data: {
-        nim,
-        nama,
-        userId: user.id,
-      },
-    });
-
-    res.status(201).json({
-      message: "Mahasiswa berhasil ditambahkan",
-      data: {
-        id: mahasiswa.id,
-        nim: mahasiswa.nim,
-        nama: mahasiswa.nama,
-        email: user.email,
-      },
-    });
-
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-export const getMahasiswa = async (req, res) => {
-  try {
-    const mhs = await prisma.mahasiswa.findMany({
-      distinct: ["id"], 
-      include: {
-        enrollments: {
-          include: {
-            jadwal: {
-              include: {
-                mataKuliah: true,
-                dosen: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    res.json({
-      message: "List Mahasiswa",
-      Data: mhs,
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-export const updateMahasiswa = async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    const { nama, nim } = req.body;
-    const updated = await prisma.mahasiswa.update({ where: { id }, data: { nama, nim } });
-    const upgrade = await prisma.mahasiswa.findMany({ where: {id: updated.id }, include: {
-        enrollments: {
-          include: {
-            jadwal: {
-              include: {
-                mataKuliah: true,
-                dosen: true,
-              },
-            },
-          },
-        },
-      },
-    })
-
-    const respon = upgrade.map((haha)=> {
-      const h = {
-        id: haha.id,
-        nim: haha.nim,
-        nama: haha.nama
-      }
-      return h;
-    })
-
-    res.json({
-      message: "Data Berhasil diperbarui",
-      Data: respon
-    });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-};
-
-export const deleteMahasiswa = async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    const hapus = await prisma.mahasiswa.findMany({ where: {id: id.id }, include: {
-        enrollments: {
-          include: {
-            jadwal: {
-              include: {
-                mataKuliah: true,
-                dosen: true,
-              },
-            },
-          },
-        },
-      },
-    })
-    // optionally delete user too - here we just delete mahasiswa record
-    await prisma.mahasiswa.delete({ where: { id } });
-    res.json({ message: "Mahasiswa deleted",
-      mahasiswaLainnya: hapus
-     });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-};
-
-// --- Jadwal CRUD ---
-export const createJadwal = async (req, res) => {
-  try {
-    const { mataKuliahId, dosenId, hari, jamMulai, jamSelesai, kapasitas } = req.body;
+    // Buat jadwal dengan dosenId
     const jadwal = await prisma.jadwal.create({
-      data: { mataKuliahId: Number(mataKuliahId), dosenId: Number(dosenId), hari, jamMulai, jamSelesai, kapasitas: kapasitas ?? 999 }
+      data: {
+        mataKuliahId: Number(mataKuliahId),
+        dosenId: dosen.id,            // 👈 WAJIB ADA
+        hari,
+        jamMulai,
+        jamSelesai,
+        kapasitas: Number(kapasitas)
+      }
     });
-    res.status(201).json(jadwal);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+
+    // Ambil jadwal yang baru dibuat
+    const find = await prisma.jadwal.findMany({
+      where: { id: jadwal.id },
+      include: {
+        dosen: true,
+        mataKuliah: true,
+      }
+    });
+
+    const nambah = find.map((na) => {
+      return {
+        mataKuliah: na.mataKuliah.nama,
+        pengajar: na.dosen.nama,
+        hari: na.hari,
+        jamMulai: na.jamMulai,
+        jamSelesai: na.jamSelesai,
+        kapasitas: na.kapasitas
+      };
+    });
+
+    res.json({
+      message: "Jadwal berhasil dibuat",
+      Data: nambah
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 };
 
-export const listJadwal = async (req, res) => {
-  const jadwals = await prisma.jadwal.findMany({ include: { mataKuliah: true, dosen: true, enrollments: true } });
-  res.json(jadwals);
+export const getJadwalHariIni = async (req, res) => {
+  try {
+    const hariMap = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+
+    const today = new Date();
+    const hariIni = hariMap[today.getDay()];
+
+    const dosenUserId = req.user.id;
+
+    const dosen = await prisma.dosen.findFirst({
+      where: { userId: dosenUserId },
+    });
+
+    if (!dosen) {
+      return res.status(404).json({ error: "Profil dosen tidak ditemukan" });
+    }
+
+    const jadwalHariIni = await prisma.jadwal.findMany({
+      where: {
+        dosenId: dosen.id,
+        hari: hariIni,
+      },
+      include: {
+        mataKuliah: true,
+        dosen: true,
+      },
+    });
+
+    res.json({
+      message: `Jadwal mengajar hari ${hariIni}`,
+      data: jadwalHariIni,
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 };
 
-export const updateJadwal = async (req, res) => {
+
+export const updateJadwalDosen = async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { mataKuliahId, dosenId, hari, jamMulai, jamSelesai, kapasitas } = req.body;
+
+    const dosen = await prisma.dosen.findUnique({ where: { userId: req.user.id }});
+
+    const jadwal = await prisma.jadwal.findUnique({ where: { id }});
+    if (!jadwal) return res.status(404).json({ message: "Jadwal tidak ditemukan" });
+    if (jadwal.dosenId !== dosen.id)
+      return res.status(403).json({ message: "Anda tidak berhak mengubah jadwal ini" });
+
     const updated = await prisma.jadwal.update({
       where: { id },
-      data: { mataKuliahId: mataKuliahId ? Number(mataKuliahId) : undefined, dosenId: dosenId ? Number(dosenId) : undefined, hari, jamMulai, jamSelesai, kapasitas }
+      data: req.body,
     });
-    res.json(updated);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+
+    res.json({ message: "Jadwal diperbarui", updated });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 };
 
-export const deleteJadwal = async (req, res) => {
+export const deleteJadwalDosen = async (req, res) => {
   try {
     const id = Number(req.params.id);
+
+    const dosen = await prisma.dosen.findUnique({ where: { userId: req.user.id }});
+
+    const jadwal = await prisma.jadwal.findUnique({ where: { id }});
+    if (!jadwal) return res.status(404).json({ message: "Jadwal tidak ditemukan" });
+    if (jadwal.dosenId !== dosen.id)
+      return res.status(403).json({ message: "Anda tidak boleh menghapus jadwal ini" });
+
     await prisma.jadwal.delete({ where: { id } });
-    res.json({ message: "Jadwal deleted" });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+
+    res.json({ message: "Jadwal dihapus" });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 };

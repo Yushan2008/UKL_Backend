@@ -5,7 +5,7 @@ import {
   createMata, updateMata, deleteMata, listMata,
   createMahasiswa, getMahasiswa, updateMahasiswa, deleteMahasiswa,
   createJadwal, updateJadwal, deleteJadwal, listJadwal
-} from "../controllers/dosen.controller.js"; // we'll split controllers but keep small
+} from "../controllers/admin.controller.js"; // we'll split controllers but keep small
 
 const router = express.Router();
 
